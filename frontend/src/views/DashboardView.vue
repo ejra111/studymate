@@ -1,6 +1,6 @@
 <script setup>
-import { computed, onMounted } from 'vue'
-import { loadDashboard, loadMatches, loadStudyPlan, state } from '../store/appStore'
+import { computed, onMounted, ref, nextTick } from 'vue'
+import { loadDashboard, loadMatches, loadStudyPlan, state, getPrivateMessages, sendPrivateMessage } from '../store/appStore'
 
 onMounted(async () => {
   await Promise.allSettled([loadDashboard(), loadMatches(), loadStudyPlan(true)])
@@ -15,6 +15,54 @@ const topPartnerMatches = computed(() => state.matches?.partnerMatches?.slice(0,
 const friends = computed(() => state.dashboard?.friends || [])
 const isLoadingPlan = computed(() => state.loading.studyPlan)
 const isLoadingDashboard = computed(() => state.loading.dashboard)
+
+// Private Chat State
+const selectedFriend = ref(null)
+const privateChatMessages = ref([])
+const privateChatDraft = ref('')
+const isChatLoading = ref(false)
+
+async function openPrivateChat(friend) {
+  selectedFriend.value = friend
+  isChatLoading.value = true
+  privateChatMessages.value = []
+  
+  try {
+    const msgs = await getPrivateMessages(friend.id)
+    privateChatMessages.value = msgs
+    await nextTick()
+    scrollToBottom()
+  } catch (err) {
+    console.error('Failed to load private messages:', err)
+  } finally {
+    isChatLoading.value = false
+  }
+}
+
+async function handleSendPrivate() {
+  if (!selectedFriend.value || !privateChatDraft.value.trim()) return
+  
+  try {
+    const msg = await sendPrivateMessage(selectedFriend.value.id, privateChatDraft.value)
+    if (msg) {
+      privateChatMessages.value.push(msg)
+      privateChatDraft.value = ''
+      await nextTick()
+      scrollToBottom()
+    }
+  } catch (err) {
+    console.error('Failed to send private message:', err)
+  }
+}
+
+function scrollToBottom() {
+  const box = document.querySelector('.private-chat-box')
+  if (box) box.scrollTop = box.scrollHeight
+}
+
+function closeChat() {
+  selectedFriend.value = null
+}
 </script>
 
 <template>
@@ -115,19 +163,6 @@ const isLoadingDashboard = computed(() => state.loading.dashboard)
       </article>
 
       <article class="feature-card glass-card">
-        <h3>Partner terbaik minggu ini</h3>
-        <p class="card-subtitle">Rekomendasi paling relevan dari sistem</p>
-        
-        <div v-if="topPartnerMatches.length" class="list-content">
-          <div v-for="item in topPartnerMatches" :key="item.user.id" class="list-item">
-            <strong>{{ item.user.name }}</strong>
-            <span class="score-tag">{{ item.score }}</span>
-          </div>
-        </div>
-        <p v-else class="empty-text">Belum ada partner match yang cukup kuat.</p>
-      </article>
-
-      <article class="feature-card glass-card">
         <h3>Daftar Teman</h3>
         <p class="card-subtitle">Teman belajar yang sudah terhubung</p>
         
@@ -140,7 +175,7 @@ const isLoadingDashboard = computed(() => state.loading.dashboard)
               <strong>{{ friend.name }}</strong>
               <span>{{ friend.program }}</span>
             </div>
-            <button class="chat-btn-small">Chat</button>
+            <button class="chat-btn-small" @click="openPrivateChat(friend)">Chat</button>
           </div>
         </div>
         <p v-else class="empty-text">Belum ada teman. Cari di Smart Match!</p>
@@ -176,6 +211,57 @@ const isLoadingDashboard = computed(() => state.loading.dashboard)
         </div>
         <p v-else class="empty-text">Belum ada aktivitas terbaru.</p>
       </article>
+    </div>
+
+    <!-- Private Chat Modal/Panel -->
+    <div v-if="selectedFriend" class="private-chat-overlay" @click="closeChat">
+      <div class="private-chat-window glass-card" @click.stop>
+        <header class="chat-header">
+          <div class="friend-info">
+            <div class="friend-avatar-modal" :style="{ background: selectedFriend.avatarColor || '#6366f1' }">
+              {{ selectedFriend.name?.charAt(0) }}
+            </div>
+            <div>
+              <h3>{{ selectedFriend.name }}</h3>
+              <p>{{ selectedFriend.program }}</p>
+            </div>
+          </div>
+          <button class="close-chat" @click="closeChat">×</button>
+        </header>
+
+        <div class="private-chat-box">
+          <div v-if="isChatLoading" class="chat-loading">
+            <div class="spinner-small"></div>
+            <p>Memuat pesan...</p>
+          </div>
+          <div v-else-if="privateChatMessages.length === 0" class="chat-empty">
+            <p>Belum ada pesan. Sapa {{ selectedFriend.name }}!</p>
+          </div>
+          <div
+            v-for="msg in privateChatMessages"
+            :key="msg.id"
+            class="msg-item"
+            :class="{ 'own-msg': msg.sender_id === state.user.id }"
+          >
+            <div class="msg-bubble">
+              <p>{{ msg.message }}</p>
+              <span class="msg-time">{{ new Date(msg.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) }}</span>
+            </div>
+          </div>
+        </div>
+
+        <footer class="chat-footer">
+          <input
+            v-model="privateChatDraft"
+            placeholder="Ketik pesan..."
+            @keyup.enter="handleSendPrivate"
+            class="chat-input-field"
+          />
+          <button class="send-private-btn" @click="handleSendPrivate" :disabled="!privateChatDraft.trim()">
+            Kirim
+          </button>
+        </footer>
+      </div>
     </div>
   </section>
 </template>
@@ -234,6 +320,34 @@ const isLoadingDashboard = computed(() => state.loading.dashboard)
 .friend-info span { font-size: 11px; color: #64748b; }
 .chat-btn-small { padding: 6px 12px; border-radius: 8px; background: rgba(99, 102, 241, 0.1); border: 1px solid rgba(99, 102, 241, 0.2); color: #818cf8; font-size: 11px; font-weight: 700; cursor: pointer; transition: all 0.2s; }
 .chat-btn-small:hover { background: var(--primary); color: white; border-color: var(--primary); }
+
+/* Private Chat UI */
+.private-chat-overlay { position: fixed; inset: 0; background: rgba(0, 0, 0, 0.5); backdrop-filter: blur(4px); z-index: 1000; display: flex; align-items: center; justify-content: center; padding: 20px; }
+.private-chat-window { width: 100%; max-width: 450px; height: 550px; display: flex; flex-direction: column; overflow: hidden; background: #0f172a; }
+.chat-header { padding: 16px; border-bottom: 1px solid var(--line); display: flex; justify-content: space-between; align-items: center; }
+.chat-header .friend-info { display: flex; gap: 12px; align-items: center; }
+.chat-header .friend-avatar-modal { width: 40px; height: 40px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 16px; font-weight: 700; color: white; }
+.chat-header h3 { margin: 0; font-size: 16px; color: white; }
+.chat-header p { margin: 0; font-size: 12px; color: #64748b; }
+.close-chat { background: none; border: none; color: #94a3b8; font-size: 24px; cursor: pointer; padding: 0 8px; }
+
+.private-chat-box { flex: 1; padding: 16px; overflow-y: auto; display: flex; flex-direction: column; gap: 12px; background: rgba(0, 0, 0, 0.2); }
+.chat-loading, .chat-empty { display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100%; color: #64748b; font-size: 14px; gap: 12px; }
+.msg-item { display: flex; flex-direction: column; max-width: 80%; }
+.msg-bubble { padding: 10px 14px; border-radius: 14px; background: rgba(255, 255, 255, 0.05); }
+.msg-bubble p { margin: 0; font-size: 14px; line-height: 1.5; color: #cbd5e1; }
+.msg-time { display: block; font-size: 10px; color: #64748b; margin-top: 4px; text-align: right; }
+.own-msg { align-self: flex-end; }
+.own-msg .msg-bubble { background: #312e81; border-bottom-right-radius: 4px; }
+.own-msg .msg-time { color: #818cf8; }
+
+.chat-footer { padding: 16px; border-top: 1px solid var(--line); display: flex; gap: 10px; background: rgba(15, 23, 42, 0.4); }
+.chat-input-field { flex: 1; background: rgba(255, 255, 255, 0.03); border: 1px solid var(--line); color: white; padding: 10px 16px; border-radius: 12px; outline: none; }
+.send-private-btn { background: var(--primary); color: white; border: none; padding: 0 16px; border-radius: 12px; font-weight: 700; cursor: pointer; }
+.send-private-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+.spinner-small { width: 24px; height: 24px; border: 3px solid rgba(99, 102, 241, 0.1); border-top-color: #6366f1; border-radius: 50%; animation: spin 1s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
 
 .score-tag, .time-tag { font-size: 12px; font-weight: 700; padding: 4px 10px; border-radius: 8px; background: rgba(99, 102, 241, 0.1); color: #818cf8; }
 

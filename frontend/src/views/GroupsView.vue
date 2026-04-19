@@ -18,7 +18,8 @@ const form = reactive({
   title: '',
   topic: '',
   description: '',
-  schedule: '',
+  scheduleDay: '',
+  scheduleTime: '',
   courseName: '',
   locationName: '',
   capacity: 5,
@@ -64,127 +65,32 @@ function autoUpperCase(field) {
   form[field] = String(form[field] || '').toUpperCase()
 }
 
-// === Schedule validation & normalization (Hari + HH:mm) ===
+// === Schedule configuration ===
 const VALID_DAYS = ['SENIN', 'SELASA', 'RABU', 'KAMIS', 'JUMAT', 'SABTU', 'MINGGU']
 
-const DAY_ALIASES = {
-  'SEN': 'SENIN', 'SEL': 'SELASA', 'RAB': 'RABU', 'KAM': 'KAMIS',
-  'JUM': 'JUMAT', "JUM'AT": 'JUMAT', 'SAB': 'SABTU', 'MIN': 'MINGGU', 'MING': 'MINGGU',
-  'MONDAY': 'SENIN', 'TUESDAY': 'SELASA', 'WEDNESDAY': 'RABU',
-  'THURSDAY': 'KAMIS', 'FRIDAY': 'JUMAT', 'SATURDAY': 'SABTU', 'SUNDAY': 'MINGGU',
-}
-
-function normalizeSchedule(raw) {
-  let text = String(raw || '').trim().toUpperCase()
-
-  // Remove punctuation like commas or dots that might be typed
-  text = text.replace(/[,.]/g, ' ')
-
-  // Remove filler words
-  text = text.replace(/\bJAM\b/g, '').replace(/\bPUKUL\b/g, '').replace(/\bWIB\b/g, '').trim()
-
-  // Handle "pagi/siang/sore/malam" time words
-  text = text.replace(/(\d{1,2})\s*(PAGI)/g, (_, h) => {
-    const hour = parseInt(h)
-    return String(hour).padStart(2, '0') + ':00'
-  })
-  text = text.replace(/(\d{1,2})\s*(SIANG)/g, (_, h) => {
-    let hour = parseInt(h)
-    if (hour < 10) hour += 12
-    return String(hour).padStart(2, '0') + ':00'
-  })
-  text = text.replace(/(\d{1,2})\s*(SORE)/g, (_, h) => {
-    let hour = parseInt(h)
-    if (hour < 12) hour += 12
-    return String(Math.min(hour, 23)).padStart(2, '0') + ':00'
-  })
-  text = text.replace(/(\d{1,2})\s*(MALAM)/g, (_, h) => {
-    let hour = parseInt(h)
-    if (hour < 12) hour += 12
-    return String(Math.min(hour, 23)).padStart(2, '0') + ':00'
-  })
-
-  // Normalize bare hour "7" → "07:00"
-  text = text.replace(/\b(\d{1,2})\b(?!:|\d)/g, (_, h) => {
-    return String(parseInt(h)).padStart(2, '0') + ':00'
-  })
-
-  // Clean up extra spaces
-  text = text.replace(/\s+/g, ' ').trim()
-
-  // Extract day and time
-  const parts = text.split(/\s+/)
-  let day = null
-  let time = null
-
-  for (const part of parts) {
-    const cleanPart = part.replace(/[^A-Z0-9:]/g, '')
-    if (VALID_DAYS.includes(cleanPart)) {
-      day = cleanPart
-    } else if (DAY_ALIASES[cleanPart]) {
-      day = DAY_ALIASES[cleanPart]
-    } else if (/^\d{1,2}:\d{2}$/.test(cleanPart)) {
-      time = cleanPart
-    } else if (/^\d{4}$/.test(cleanPart)) {
-      // Handle "1900" -> "19:00"
-      time = cleanPart.slice(0, 2) + ':' + cleanPart.slice(2)
-    }
-  }
-
-  if (day && time) {
-    // Validate time range
-    const [hh, mm] = time.split(':').map(Number)
-    if (hh >= 0 && hh <= 23 && mm >= 0 && mm <= 59) {
-      return `${day} ${String(hh).padStart(2, '0')}:${String(mm).padStart(2, '0')}`
-    }
-  }
-
-  // If we couldn't normalize but it's already in a decent format, try to be lenient
-  if (day && !time) {
-     // If only day is found, maybe time is missing? Keep it for now but it won't pass validation
-  }
-
-  return null // invalid
-}
-
-function validateSchedule() {
-  if (!form.schedule) {
-    scheduleError.value = ''
-    return true
-  }
-
-  const result = normalizeSchedule(form.schedule)
-  if (result) {
-    form.schedule = result
-    scheduleError.value = ''
-    return true
-  }
-
-  scheduleError.value = 'Format harus: HARI HH:mm (contoh: SENIN 19:00)'
-  return false
-}
-
 async function submitGroup() {
-  if (!validateSchedule()) {
-    pushToast('Format jadwal tidak valid. Contoh: SENIN 19:00', 'error')
+  if (!form.scheduleDay || !form.scheduleTime) {
+    pushToast('Pilih hari dan jam terlebih dahulu.', 'error')
     return
   }
 
   try {
+    const formattedSchedule = `${form.scheduleDay} ${form.scheduleTime}`
     await createGroup({
-      title: form.title.toUpperCase(),
-      topic: form.topic.toUpperCase(),
-      description: form.description.toUpperCase(),
-      schedule: form.schedule.toUpperCase(),
-      courseName: form.courseName.toUpperCase(),
-      locationName: form.locationName.toUpperCase(),
+      title: form.title, // Tidak perlu kapital di UI
+      topic: form.topic, // Tidak perlu kapital di UI
+      description: form.description,
+      schedule: formattedSchedule,
+      courseName: form.courseName.toUpperCase(), // Otomatis kapital untuk database
+      locationName: form.locationName, // Tidak perlu kapital di UI
       capacity: form.capacity,
     })
     Object.assign(form, {
       title: '',
       topic: '',
       description: '',
-      schedule: '',
+      scheduleDay: '',
+      scheduleTime: '',
       courseName: '',
       locationName: '',
       capacity: 5,
@@ -272,27 +178,32 @@ async function handleRefreshSummary() {
         <div class="form-grid-inner">
           <div class="field-group">
             <label>Judul Grup</label>
-            <input v-model="form.title" placeholder="Contoh: BELAJAR AI" @input="autoUpperCase('title')" />
+            <input v-model="form.title" placeholder="Contoh: Belajar AI" />
           </div>
           <div class="field-group">
             <label>Topik</label>
-            <input v-model="form.topic" placeholder="Contoh: MACHINE LEARNING" @input="autoUpperCase('topic')" />
+            <input v-model="form.topic" placeholder="Contoh: Machine Learning" />
           </div>
           <div class="field-group">
             <label>Mata Kuliah</label>
-            <input v-model="form.courseName" placeholder="Contoh: KECERDASAN BUATAN" @input="autoUpperCase('courseName')" />
-            <small class="hint">Ketik nama mata kuliah. Otomatis UPPERCASE.</small>
+            <input v-model="form.courseName" placeholder="Contoh: Kecerdasan Buatan" />
+            <small class="hint"></small>
           </div>
           <div class="field-group">
             <label>Tempat Belajar</label>
-            <input v-model="form.locationName" placeholder="Contoh: PERPUSTAKAAN PUSAT" @input="autoUpperCase('locationName')" />
-            <small class="hint">Ketik lokasi belajar. Otomatis UPPERCASE.</small>
+            <input v-model="form.locationName" placeholder="Contoh: Perpustakaan Pusat" />
+            <small class="hint"></small>
           </div>
-          <div class="field-group">
-            <label>Jadwal</label>
-            <input v-model="form.schedule" placeholder="Contoh: SENIN 19:00" @blur="validateSchedule" @input="autoUpperCase('schedule')" />
-            <small v-if="scheduleError" class="hint error-hint">{{ scheduleError }}</small>
-            <small v-else class="hint">Format: HARI HH:mm (Senin–Minggu)</small>
+          <div class="field-group schedule-group">
+            <label>Jadwal Belajar</label>
+            <div class="schedule-inputs">
+              <select v-model="form.scheduleDay" class="day-select">
+                <option value="" disabled>Pilih Hari</option>
+                <option v-for="day in VALID_DAYS" :key="day" :value="day">{{ day }}</option>
+              </select>
+              <input v-model="form.scheduleTime" type="time" class="time-input" />
+            </div>
+            <small class="hint">Pilih hari dan tentukan jam belajar.</small>
           </div>
           <div class="field-group">
             <label>Kapasitas</label>
@@ -300,7 +211,7 @@ async function handleRefreshSummary() {
           </div>
           <div class="field-group full-span">
             <label>Deskripsi</label>
-            <textarea v-model="form.description" rows="3" placeholder="Deskripsi singkat grup" @input="autoUpperCase('description')"></textarea>
+            <textarea v-model="form.description" rows="3" placeholder="Deskripsi singkat grup"></textarea>
           </div>
         </div>
         <button class="primary-btn submit-btn" @click="submitGroup">Simpan Grup</button>
@@ -436,6 +347,23 @@ h1, h2 { color: white; margin: 0; }
 .hint { font-size: 10px; color: #64748b; }
 .error-hint { color: #f87171; font-weight: 600; }
 .submit-btn { margin-top: 24px; width: 100%; }
+
+.schedule-inputs {
+  display: flex;
+  gap: 10px;
+}
+.day-select, .time-input {
+  flex: 1;
+  background: rgba(15, 23, 42, 0.6);
+  border: 1px solid var(--line);
+  color: white;
+  padding: 10px;
+  border-radius: 12px;
+  outline: none;
+}
+.day-select option {
+  background: #1e293b;
+}
 
 .toolbar { display: flex; justify-content: space-between; align-items: flex-end; margin-bottom: 24px; gap: 16px; }
 .search-box { display: flex; gap: 8px; flex: 1; max-width: 400px; }

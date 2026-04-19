@@ -248,6 +248,20 @@ export async function sendGroupMessage(groupId, message) {
   })
 }
 
+export async function getPrivateMessages(friendId) {
+  if (!state.user?.id) return []
+  return await api.get(`/chat/${state.user.id}/${friendId}`)
+}
+
+export async function sendPrivateMessage(friendId, message) {
+  if (!state.user?.id) return null
+  return await api.post('/chat/send', {
+    sender_id: state.user.id,
+    receiver_id: friendId,
+    message: String(message || '').trim(),
+  })
+}
+
 export async function getGroupSummary(groupId, force = false) {
   if (!force && state.ai.groupSummaries[groupId]) {
     return state.ai.groupSummaries[groupId]

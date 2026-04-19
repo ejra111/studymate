@@ -3,6 +3,7 @@
 use App\Http\Controllers\AdminController;
 use App\Http\Controllers\AuthController;
 use App\Http\Controllers\BootstrapController;
+use App\Http\Controllers\ChatController;
 use App\Http\Controllers\MatchmakingController;
 use App\Http\Controllers\NotificationController;
 use App\Http\Controllers\StudyAiController;
@@ -54,6 +55,11 @@ Route::prefix('groups')->group(function () {
 });
 
 Route::get('/matchmaking/{userId}', [MatchmakingController::class, 'index']);
+
+Route::prefix('chat')->group(function () {
+    Route::get('/{userId}/{friendId}', [ChatController::class, 'getMessages']);
+    Route::post('/send', [ChatController::class, 'sendMessage']);
+});
 
 Route::prefix('notifications')->group(function () {
     Route::get('/{userId}', [NotificationController::class, 'index']);

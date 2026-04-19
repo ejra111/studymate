@@ -6,6 +6,7 @@ SET FOREIGN_KEY_CHECKS = 0;
 DROP TABLE IF EXISTS `group_user`;
 DROP TABLE IF EXISTS `course_user`;
 DROP TABLE IF EXISTS `friends`;
+DROP TABLE IF EXISTS `private_messages`;
 DROP TABLE IF EXISTS `group_messages`;
 DROP TABLE IF EXISTS `activities`;
 DROP TABLE IF EXISTS `study_groups`;
@@ -143,6 +144,23 @@ CREATE TABLE `group_user` (
   KEY `group_user_user_id_foreign` (`user_id`),
   CONSTRAINT `group_user_study_group_id_foreign` FOREIGN KEY (`study_group_id`) REFERENCES `study_groups` (`id`) ON DELETE CASCADE,
   CONSTRAINT `group_user_user_id_foreign` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- ---------------------------------------------------------
+-- private_messages
+-- ---------------------------------------------------------
+CREATE TABLE `private_messages` (
+  `id` varchar(255) NOT NULL,
+  `sender_id` varchar(255) NOT NULL,
+  `receiver_id` varchar(255) NOT NULL,
+  `message` text NOT NULL,
+  `read_at` timestamp NULL DEFAULT NULL,
+  `created_at` timestamp NULL DEFAULT NULL,
+  `updated_at` timestamp NULL DEFAULT NULL,
+  PRIMARY KEY (`id`),
+  KEY `private_messages_sender_receiver_idx` (`sender_id`,`receiver_id`),
+  CONSTRAINT `private_messages_sender_fk` FOREIGN KEY (`sender_id`) REFERENCES `users` (`id`) ON DELETE CASCADE,
+  CONSTRAINT `private_messages_receiver_fk` FOREIGN KEY (`receiver_id`) REFERENCES `users` (`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- ---------------------------------------------------------
