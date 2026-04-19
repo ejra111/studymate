@@ -46,6 +46,7 @@ Route::prefix('groups')->group(function () {
     Route::put('/{id}', [StudyGroupController::class, 'update']);
     Route::delete('/{id}', [StudyGroupController::class, 'destroy']);
     Route::post('/{id}/join', [StudyGroupController::class, 'join']);
+    Route::post('/{id}/leave', [StudyGroupController::class, 'leave']);
 
     Route::get('/{id}/messages', [StudyGroupController::class, 'messages']);
     Route::post('/{id}/messages', [StudyGroupController::class, 'postMessage']);

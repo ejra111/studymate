@@ -7,7 +7,12 @@ onMounted(async () => {
 })
 
 const user = computed(() => state.dashboard?.user || state.user)
-const stats = computed(() => state.dashboard?.stats || {})
+const stats = computed(() => state.dashboard?.stats || {
+  joinedGroups: 0,
+  createdGroups: 0,
+  selectedCourses: 0,
+  compatibilitySignal: 0
+})
 const recommendations = computed(() => state.dashboard?.recommendations || [])
 const upcomingGroups = computed(() => state.dashboard?.upcomingGroups || [])
 const studyPlan = computed(() => state.ai.studyPlan)
@@ -84,22 +89,22 @@ function closeChat() {
       <article class="stat-card glass-card">
         <span class="stat-label">Grup yang diikuti</span>
         <p class="stat-desc">Jumlah grup yang sudah kamu ikuti.</p>
-        <strong class="stat-val">{{ stats.joinedGroups || 0 }}</strong>
+        <strong class="stat-val-visible">{{ stats.joinedGroups || 0 }}</strong>
       </article>
       <article class="stat-card glass-card">
         <span class="stat-label">Grup yang dibuat</span>
         <p class="stat-desc">Berguna untuk monitoring kontribusi.</p>
-        <strong class="stat-val">{{ stats.createdGroups || 0 }}</strong>
+        <strong class="stat-val-visible">{{ stats.createdGroups || 0 }}</strong>
       </article>
       <article class="stat-card glass-card">
         <span class="stat-label">Mata kuliah aktif</span>
         <p class="stat-desc">Dasar utama matchmaking.</p>
-        <strong class="stat-val">{{ stats.selectedCourses || 0 }}</strong>
+        <strong class="stat-val-visible">{{ stats.selectedCourses || 0 }}</strong>
       </article>
       <article class="stat-card glass-card">
         <span class="stat-label">Sinyal kecocokan</span>
         <p class="stat-desc">Skor partner terbaik saat ini.</p>
-        <strong class="stat-val">{{ stats.compatibilitySignal || 0 }}</strong>
+        <strong class="stat-val-visible">{{ stats.compatibilitySignal || 0 }}%</strong>
       </article>
     </div>
 
@@ -281,7 +286,7 @@ function closeChat() {
 .stat-card { padding: 24px; display: flex; flex-direction: column; gap: 4px; }
 .stat-label { font-size: 12px; font-weight: 500; color: #94a3b8; }
 .stat-desc { font-size: 13px; color: #64748b; margin-bottom: 8px; }
-.stat-val { font-size: 24px; font-weight: 700; display: none; } /* Hidden as per image text focus */
+.stat-val-visible { font-size: 28px; font-weight: 800; color: white; margin-top: auto; }
 
 .main-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
 .ai-planner-card { grid-column: span 2; padding: 24px; border: 1px solid rgba(99, 102, 241, 0.2); }

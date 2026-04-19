@@ -8,6 +8,7 @@ use App\Models\GroupMessage;
 use App\Models\Location;
 use App\Models\Program;
 use App\Models\StudyGroup;
+use App\Models\StudyNotification;
 use App\Models\User;
 use App\Services\SmartMatchService;
 use App\Services\StudyAiService;
@@ -90,6 +91,24 @@ class StudyGroupController extends Controller
         $owner = User::find($request->input('ownerId'));
         $this->logActivity($owner?->id, 'group.create', ($owner?->name ?? 'User') . ' membuat grup ' . $group->title);
 
+        // Notify potential members (e.g., those with same courses)
+        $potentialMemberIds = User::where('id', '!=', $owner->id)
+            ->whereHas('courses', function ($q) use ($courseId) {
+                $q->where('courses.id', $courseId);
+            })
+            ->pluck('id');
+
+        foreach ($potentialMemberIds as $receiverId) {
+            StudyNotification::create([
+                'id' => (string) Str::uuid(),
+                'sender_id' => $owner->id,
+                'receiver_id' => $receiverId,
+                'type' => 'group_created',
+                'message' => "Grup baru '{$group->title}' dibuat untuk mata kuliah yang kamu ambil!",
+                'data' => ['groupId' => $group->id]
+            ]);
+        }
+
         return response()->json($group->load(['owner', 'course', 'location', 'members']), 201);
     }
 
@@ -98,6 +117,11 @@ class StudyGroupController extends Controller
         $group = StudyGroup::with(['owner', 'course', 'location', 'members'])->find($id);
         if (!$group) {
             return response()->json(['message' => 'Grup tidak ditemukan.'], 404);
+        }
+
+        $actorId = $request->input('actorId');
+        if ($actorId !== $group->owner_id) {
+            return response()->json(['message' => 'Anda tidak memiliki izin untuk mengedit grup ini.'], 403);
         }
 
         $request->validate([
@@ -154,8 +178,12 @@ class StudyGroupController extends Controller
             return response()->json(['message' => 'Grup tidak ditemukan.'], 404);
         }
 
+        $actorId = $request->query('actorId');
+        if ($actorId !== $group->owner_id) {
+            return response()->json(['message' => 'Anda tidak memiliki izin untuk menghapus grup ini.'], 403);
+        }
+
         $title = $group->title;
-        $actorId = $request->query('actorId', $group->owner_id);
         $group->delete();
 
         $this->logActivity($actorId, 'group.delete', 'Grup ' . $title . ' dihapus');
@@ -188,7 +216,46 @@ class StudyGroupController extends Controller
         $user = User::find($userId);
         $this->logActivity($userId, 'group.join', ($user?->name ?? 'User') . ' bergabung ke grup ' . $group->title);
 
+        // Notify owner
+        StudyNotification::create([
+            'id' => (string) Str::uuid(),
+            'sender_id' => $userId,
+            'receiver_id' => $group->owner_id,
+            'type' => 'group_join',
+            'message' => "{$user->name} bergabung ke grup '{$group->title}' Anda.",
+            'data' => ['groupId' => $group->id]
+        ]);
+
         return response()->json($group->fresh()->load(['owner', 'course', 'location', 'members']));
+    }
+
+    public function leave(Request $request, string $id)
+    {
+        $group = StudyGroup::with('members')->find($id);
+        if (!$group) {
+            return response()->json(['message' => 'Grup tidak ditemukan.'], 404);
+        }
+
+        $request->validate([
+            'userId' => 'required|exists:users,id',
+        ]);
+
+        $userId = (string) $request->input('userId');
+
+        if ($group->owner_id === $userId) {
+            return response()->json(['message' => 'Pemilik grup tidak bisa keluar dari grup. Gunakan hapus grup jika ingin membubarkan grup.'], 400);
+        }
+
+        if (!$group->members()->where('users.id', $userId)->exists()) {
+            return response()->json(['message' => 'Kamu bukan anggota grup ini.'], 404);
+        }
+
+        $group->members()->detach($userId);
+        
+        $user = User::find($userId);
+        $this->logActivity($userId, 'group.leave', ($user?->name ?? 'User') . ' keluar dari grup ' . $group->title);
+
+        return response()->json(['message' => 'Berhasil keluar dari grup.']);
     }
 
     public function messages(Request $request, string $id)
@@ -261,6 +328,19 @@ class StudyGroupController extends Controller
             'user_id' => $userId,
             'message' => trim((string) $request->input('message')),
         ]);
+
+        // Notify other members
+        $otherMemberIds = $group->members->pluck('id')->reject(fn ($id) => $id === $userId);
+        foreach ($otherMemberIds as $mId) {
+            StudyNotification::create([
+                'id' => (string) Str::uuid(),
+                'sender_id' => $userId,
+                'receiver_id' => $mId,
+                'type' => 'group_activity',
+                'message' => "Pesan baru di grup '{$group->title}' dari " . User::find($userId)->name,
+                'data' => ['groupId' => $group->id]
+            ]);
+        }
 
         // Invalidate summary cache for this group when new message is sent
         Cache::forget("group_summary_{$group->id}_{$this->getGroupMessageCount($group->id)}");

@@ -79,6 +79,16 @@ class User extends Authenticatable
         return $this->belongsToMany(User::class, 'friends', 'user_id', 'friend_id');
     }
 
+    public function notificationsReceived()
+    {
+        return $this->hasMany(StudyNotification::class, 'receiver_id');
+    }
+
+    public function notificationsSent()
+    {
+        return $this->hasMany(StudyNotification::class, 'sender_id');
+    }
+
     protected $appends = ['studentId', 'programId', 'avatarColor', 'avatarUrl', 'courseIds'];
 
     public function getStudentIdAttribute()

@@ -10,10 +10,25 @@ class SmartMatchService
 {
     public function getMatchesForUser(User $user, int $limit = 6, ?string $search = null): array
     {
-        $user->loadMissing(['program', 'courses', 'studyGroups.location', 'studyGroups.members']);
+        $user->loadMissing(['program', 'courses', 'studyGroups.location', 'studyGroups.members', 'friends', 'notificationsSent', 'notificationsReceived']);
+
+        // IDs to exclude: friends and users with pending/accepted study_invite
+        $friendIds = $user->friends->pluck('id')->all();
+        $notifSentIds = $user->notificationsSent()
+            ->where('type', 'study_invite')
+            ->get()
+            ->pluck('receiver_id')
+            ->all();
+        $notifReceivedIds = $user->notificationsReceived()
+            ->where('type', 'study_invite')
+            ->get()
+            ->pluck('sender_id')
+            ->all();
+
+        $excludeIds = array_unique(array_merge([$user->id], $friendIds, $notifSentIds, $notifReceivedIds));
 
         $partnerQuery = User::query()
-            ->where('id', '!=', $user->id)
+            ->whereNotIn('id', $excludeIds)
             ->where('role', 'student');
 
         if ($search) {

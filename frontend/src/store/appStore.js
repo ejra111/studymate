@@ -233,6 +233,12 @@ export async function joinGroup(groupId) {
   pushToast('Kamu berhasil bergabung ke grup.', 'success')
 }
 
+export async function leaveGroup(groupId) {
+  await api.post(`/groups/${groupId}/leave`, { userId: state.user.id })
+  await Promise.allSettled([loadGroups(), loadDashboard(), loadMatches(), loadAdminSummary()])
+  pushToast('Kamu telah keluar dari grup.', 'info')
+}
+
 export async function getGoldenHour(groupId) {
   return await api.get(`/groups/${groupId}/golden-hour`)
 }

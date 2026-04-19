@@ -10,7 +10,6 @@ const showNotifPanel = ref(false)
 const menu = computed(() => {
   const base = [
     { label: 'Dashboard', to: '/dashboard' },
-    { label: 'Profil', to: '/profile' },
     { label: 'Grup Belajar', to: '/groups' },
     { label: 'Smart Match', to: '/matchmaking' }
   ]
@@ -91,12 +90,15 @@ function handleLogout() {
       </nav>
 
       <div class="sidebar-footer">
-        <div class="sidebar-user">
+        <RouterLink to="/profile" class="sidebar-user">
           <div class="avatar" :style="{ background: state.user?.avatarColor || '#10b981' }">
             {{ state.user?.name?.charAt(0).toLowerCase() }}
           </div>
-          <span class="topbar-name">{{ state.user?.name }}</span>
-        </div>
+          <div class="user-info-mini">
+            <span class="topbar-name">{{ state.user?.name }}</span>
+            <span class="view-profile-text">Lihat Profil</span>
+          </div>
+        </RouterLink>
 
         <div class="footer-actions">
           <button class="notif-bell" @click="toggleNotifications" title="Notifikasi">
@@ -153,6 +155,39 @@ function handleLogout() {
 
 <style scoped>
 .nav-icon { font-size: 14px; }
+
+.sidebar-user {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px;
+  background: rgba(255, 255, 255, 0.03);
+  border-radius: 12px;
+  text-decoration: none;
+  transition: all 0.2s;
+  border: 1px solid transparent;
+}
+.sidebar-user:hover {
+  background: rgba(255, 255, 255, 0.06);
+  border-color: rgba(255, 255, 255, 0.1);
+}
+
+.user-info-mini {
+  display: flex;
+  flex-direction: column;
+}
+
+.topbar-name {
+  font-size: 13px;
+  font-weight: 700;
+  color: white;
+}
+
+.view-profile-text {
+  font-size: 10px;
+  color: #64748b;
+  font-weight: 600;
+}
 
 .footer-actions {
   display: flex;
